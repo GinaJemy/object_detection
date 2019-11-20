@@ -21,35 +21,15 @@ const int inpWidth = 416;        // Width of network's input image
 const int inpHeight = 416;       // Height of network's input image
 const float WHRatio       = inpWidth / (float)inpHeight;
 const float inScaleFactor = 1/255.0;
-//        0.007843f;
 const float meanVal       = 0.5;
-const char* classNames[]  = {"background",
-                             "aeroplane", "bicycle", "bird", "boat",
-                             "bottle", "bus", "car", "cat", "chair",
-                             "cow", "diningtable", "dog", "horse",
-                             "motorbike", "person", "pottedplant",
-                             "sheep", "sofa", "train", "tvmonitor"};
-// Initialize the parameters
-const float confThreshold = 0.7; // Confidence threshold
-const float nmsThreshold = 0.4;  // Non-maximum suppression threshold
-
+const float confidenceThreshold = 0.6f;
 std::vector<String> classNamesVec;
 
 
-class filter_options
-{
-public:
-    filter_options(const std::string name, rs2::filter& filter);
-    filter_options(filter_options&& other);
-    std::string filter_name;                                   //Friendly name of the filter
-    rs2::filter& filter;                                       //The filter in use
-};
 int main(int argc, char** argv) try
 {
-	ros::init(argc, argv, "perception");
-	ros::NodeHandle n;
-
-
+    ros::init(argc, argv, "perception");
+    ros::NodeHandle n;
 
     //Load names of classes
     String classesFile = "/home/gina/cam_ws/src/darknet_ros/darknet/data/coco.names";
@@ -57,20 +37,13 @@ int main(int argc, char** argv) try
     std::string line;
     while (getline(ifs, line)) classNamesVec.push_back(line);
 
-// Give the configuration and weight files for the model
+    // Give the configuration and weight files for the model
     String modelConfiguration = "/home/gina/cam_ws/src/darknet_ros/darknet_ros/yolo_network_config/cfg/yolov2.cfg";
     String modelWeights = "/home/gina/cam_ws/src/darknet_ros/darknet_ros/yolo_network_config/weights/yolov2.weights";
 
     // Load the network
     Net net = readNetFromDarknet(modelConfiguration, modelWeights);
-
-//    net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
     net.setPreferableTarget(DNN_TARGET_CPU);
-
-
-
-//    Net net = readNetFromCaffe("/home/gina/camera_proj/MobileNetSSD_deploy.prototxt",
-//                               "/home/gina/camera_proj/MobileNetSSD_deploy.caffemodel");
 
     // Start streaming from Intel RealSense Camera
     pipeline pipe;
@@ -79,32 +52,10 @@ int main(int argc, char** argv) try
                          .as<video_stream_profile>();
     rs2::align align_to(RS2_STREAM_COLOR);
 
-// Declare filters
-//   rs2::decimation_filter dec_filter;  // Decimation - reduces depth frame density
-//   rs2::threshold_filter thr_filter;   // Threshold  - removes values outside recommended range
-//   rs2::spatial_filter spat_filter;    // Spatial    - edge-preserving spatial smoothing
-//   rs2::temporal_filter temp_filter;   // Temporal   - reduces temporal noise
-
-//                                       // Declare disparity transform from depth to disparity and vice versa
-//   const std::string disparity_filter_name = "Disparity";
-//   rs2::disparity_transform depth_to_disparity(true);
-//   rs2::disparity_transform disparity_to_depth(false);
-
-   // Initialize a vector that holds filters and their options
-//   std::vector<filter_options> filters;
-
-   // The following order of emplacement will dictate the orders in which filters are applied
-//   filters.emplace_back("Decimate", dec_filter);
-//   filters.emplace_back("Threshold", thr_filter);
-//   filters.emplace_back(disparity_filter_name, depth_to_disparity);
-
-//   filters.emplace_back("Spatial", spat_filter);
-//   filters.emplace_back("Temporal", temp_filter);
-
-
     auto stream = config.get_stream(RS2_STREAM_DEPTH).as<rs2::video_stream_profile>();
     auto intrinsics = stream.get_intrinsics(); // Calibration data
 
+    //Crop image to network's input size
     Size cropSize;
     if (profile.width() / (float)profile.height() > WHRatio)
     {
@@ -121,6 +72,7 @@ int main(int argc, char** argv) try
                     (profile.height() - cropSize.height) / 2),
               cropSize);
 
+    //Window to show detections
     const auto window_name = "Display Image";
     namedWindow(window_name, WINDOW_AUTOSIZE);
 
@@ -140,34 +92,6 @@ int main(int argc, char** argv) try
         if (color_frame.get_frame_number() == last_frame_number) continue;
         last_frame_number = color_frame.get_frame_number();
 
-        rs2::frame filtered = depth_frame; // Does not copy the frame, only adds a reference
-
-        /* Apply filters.
-        The implemented flow of the filters pipeline is in the following order:
-        1. apply decimation filter
-        2. apply threshold filter
-        3. transform the scene into disparity domain
-        4. apply spatial filter
-        5. apply temporal filter
-        6. revert the results back (if step Disparity filter was applied
-        to depth domain (each post processing block is optional and can be applied independantly).
-        */
-//        bool revert_disparity = false;
-//        for (auto&& filter : filters)
-//        {
-
-//            filtered = filter.filter.process(filtered);
-//            if (filter.filter_name == disparity_filter_name)
-//            {
-//                revert_disparity = true;
-//            }
-
-//        }
-//        if (revert_disparity)
-//        {
-//            filtered = disparity_to_depth.process(filtered);
-//        }
-
         // Convert RealSense frame to OpenCV matrix:
         auto color_mat = frame_to_mat(color_frame);
         auto depth_mat = depth_frame_to_meters(pipe, depth_frame);
@@ -176,21 +100,14 @@ int main(int argc, char** argv) try
         color_mat = color_mat(crop);
         depth_mat = depth_mat(crop);
 
+        //Convert Mat to batch of images
         Mat inputBlob = blobFromImage(color_mat, inScaleFactor,
-                                      Size(inpWidth, inpHeight), meanVal, false); //Convert Mat to batch of images
-        net.setInput(inputBlob, "data"); //set the network input
-
+                                      Size(inpWidth, inpHeight), meanVal, false);
+        //Set the network input
+        net.setInput(inputBlob, "data");
         Mat detectionMat = net.forward("detection_out");
 
-//        net.forward(detectionMat, outBlobNames);
 
-//        Mat detection = net.forward( net.getUnconnectedOutLayersNames()  ); //compute output
-
-//        Mat detectionMat(detection.size[2], detection.size[3], CV_32F, detection.ptr<float>());
-
-
-
-        float confidenceThreshold = 0.8f;
         for(int i = 0; i < detectionMat.rows; i++)
         {
             const int probability_index = 5;
@@ -209,91 +126,70 @@ int main(int argc, char** argv) try
                 Point p1(cvRound(x_center - width / 2), cvRound(y_center - height / 2));
                 Point p2(cvRound(x_center + width / 2), cvRound(y_center + height / 2));
                 Rect object(p1, p2);
+                //Draw bounding box
                 Scalar object_roi_color(0, 255, 0);
                 rectangle(color_mat, object, object_roi_color);
 
+                //Get Class Label
                 String className = objectClass < classNamesVec.size() ? classNamesVec[objectClass] : cv::format("unknown(%d)", objectClass);
                 String label = format("%s: %.2f", className.c_str(), confidence);
                 int baseLine = 0;
                 Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
-//                size_t objectClass = (size_t)(detectionMat.at<float>(i, 1));
-
-//                int xLeftBottom = static_cast<int>(detectionMat.at<float>(i, 3) * color_mat.cols);
-//                int yLeftBottom = static_cast<int>(detectionMat.at<float>(i, 4) * color_mat.rows);
-//                int xRightTop = static_cast<int>(detectionMat.at<float>(i, 5) * color_mat.cols);
-//                int yRightTop = static_cast<int>(detectionMat.at<float>(i, 6) * color_mat.rows);
-
-//                Rect object((int)xLeftBottom, (int)yLeftBottom,
-//                            (int)(xRightTop - xLeftBottom),
-//                            (int)(yRightTop - yLeftBottom));
-
-
-
-//                object = object  & Rect(0, 0, depth_mat.cols, depth_mat.rows);
-
-//                // Calculate mean depth inside the detection region
-//                // This is a very naive way to estimate objects depth
-//                // but it is intended to demonstrate how one might
-//                // use depht data in general
-//                Scalar m = mean(depth_mat(object));
-
+                //Calculate center
                 auto center = (p1 + p2)*0.5;
-
 
                 float centerPixel[2]; //  pixel
                 float centerPoint[3]; //  point (in 3D)
 
 
-
                 centerPixel[0] = center.x;
                 centerPixel[1] = center.y;
 
-                auto dist = depth_mat.at<double>(center);
-
                 // Use central pixel depth
+                auto dist = depth_mat.at<double>(center);
+                while (dist == 0)
+                {
+                    center.y = center.y + 1;
+                    dist = depth_mat.at<double>(center);;
+                }
+                // Get x,y,z coordinates from pixel and depth
                 rs2_deproject_pixel_to_point(centerPoint, &intrinsics, centerPixel, dist);
 
-
+                //String to represent depth of object
                 std::ostringstream ss;
                 ss << std::setprecision(2) << dist << " meters away";
                 String conf(ss.str());
 
+                //String to represent coordinates of object
                 std::ostringstream ss1;
-                ss1 << " x :" << (centerPoint[0]);
-                ss1 << " y :" << (centerPoint[1]);
-                ss1 << " z :" << (centerPoint[2]);
+                ss1 << " x :" << std::setprecision(2) << (centerPoint[0]);
+                ss1 << " y :" << std::setprecision(2) << (centerPoint[1]);
+                ss1 << " z :" << std::setprecision(2) << (centerPoint[2]);
                 String conf1(ss1.str());
 
-//                rectangle(color_mat, object, Scalar(0, 255, 0));
-//                int baseLine = 0;
-//                Size labelSize = getTextSize(ss.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-//                center.x = center.x - labelSize.width / 2;
 
-//                rectangle(color_mat, Rect(Point(center.x, center.y - labelSize.height),
-//                    Size(labelSize.width, labelSize.height + baseLine)),
-//                    Scalar(255, 255, 255), FILLED);
-//                putText(color_mat, ss.str(), center,
-//                        FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
-//                auto text2_center = center;
 
+                // Add label with class name
                 rectangle(color_mat, Rect(p1, Size(labelSize.width, labelSize.height + baseLine)),
                           object_roi_color, FILLED);
                 putText(color_mat, label, p1 + Point(0, labelSize.height),
                         FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
 
+                //Add label with coordinates of object
                 Size labelSize1 = getTextSize(ss1.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-                rectangle(color_mat, Rect(Point(x_center, y_center +2 *labelSize1.height ),
+                rectangle(color_mat, Rect(Point(x_center-labelSize1.width/2, y_center +2 *labelSize1.height ),
                     Size(labelSize1.width, labelSize1.height + baseLine)),
                     Scalar(255, 255, 255), FILLED);
-                putText(color_mat, ss1.str(), Point(x_center, y_center + 3 *labelSize1.height ),
+                putText(color_mat, ss1.str(), Point(x_center-labelSize1.width/2, y_center + 3 *labelSize1.height ),
                         FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
 
+                //Add label with depth of object
                 Size labelSize2 = getTextSize(ss.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-                rectangle(color_mat, Rect(Point(x_center, y_center +4 *labelSize2.height ),
+                rectangle(color_mat, Rect(Point(x_center-labelSize1.width/2, y_center +4 *labelSize2.height ),
                     Size(labelSize2.width, labelSize2.height + baseLine)),
                     Scalar(255, 255, 255), FILLED);
-                putText(color_mat, ss.str(), Point(x_center, y_center + 5 *labelSize2.height ),
+                putText(color_mat, ss.str(), Point(x_center-labelSize1.width/2, y_center + 5 *labelSize2.height ),
                         FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
             }
         }
@@ -313,34 +209,4 @@ catch (const std::exception& e)
 {
     std::cerr << e.what() << std::endl;
     return EXIT_FAILURE;
-}
-
-filter_options::filter_options(const std::string name, rs2::filter& flt) :
-    filter_name(name),
-    filter(flt)
-{
-    const std::array<rs2_option, 5> possible_filter_options = {
-        RS2_OPTION_FILTER_MAGNITUDE,
-        RS2_OPTION_FILTER_SMOOTH_ALPHA,
-        RS2_OPTION_MIN_DISTANCE,
-        RS2_OPTION_MAX_DISTANCE,
-        RS2_OPTION_FILTER_SMOOTH_DELTA
-    };
-
-    //Go over each filter option and create a slider for it
-    for (rs2_option opt : possible_filter_options)
-    {
-        if (flt.supports(opt))
-        {
-            rs2::option_range range = flt.get_option_range(opt);
-            std::string opt_name = flt.get_option_name(opt);
-            std::string prefix = "Filter ";
-        }
-    }
-}
-
-filter_options::filter_options(filter_options&& other) :
-    filter_name(std::move(other.filter_name)),
-    filter(other.filter)
-{
 }
