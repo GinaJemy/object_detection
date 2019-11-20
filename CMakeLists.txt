@@ -7,7 +7,9 @@ add_compile_options(-std=c++11)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(OpenCV REQUIRED)
+set(OpenCV_DIR /usr/local/lib/cmake/opencv4/OpenCVConfig.cmake)
+
+find_package(OpenCV 4.1.2 REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
