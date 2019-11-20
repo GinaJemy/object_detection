@@ -13,6 +13,9 @@
 #include <iostream>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include "realsense_perception/DetectedObject.h"
+#include "realsense_perception/DetectedObjectsArray.h"
+
 using namespace cv;
 using namespace cv::dnn;
 using namespace rs2;
@@ -30,6 +33,7 @@ int main(int argc, char** argv) try
 {
     ros::init(argc, argv, "perception");
     ros::NodeHandle n;
+    ros::Publisher pub = n.advertise<realsense_perception::DetectedObjectsArray>("Objects", 1000);
 
     //Load names of classes
     String classesFile = "/home/gina/cam_ws/src/darknet_ros/darknet/data/coco.names";
@@ -107,6 +111,7 @@ int main(int argc, char** argv) try
         net.setInput(inputBlob, "data");
         Mat detectionMat = net.forward("detection_out");
 
+        realsense_perception::DetectedObjectsArray msg;
 
         for(int i = 0; i < detectionMat.rows; i++)
         {
@@ -168,7 +173,14 @@ int main(int argc, char** argv) try
                 ss1 << " z :" << std::setprecision(2) << (centerPoint[2]);
                 String conf1(ss1.str());
 
+                realsense_perception::DetectedObject obj;
+                obj.x = centerPoint[0];
+                obj.y = centerPoint[1];
+                obj.z = centerPoint[2];
+                obj.ClassName = className;
+                obj.probability = confidence;
 
+                msg.detectedObjects.push_back(obj);
 
                 // Add label with class name
                 rectangle(color_mat, Rect(p1, Size(labelSize.width, labelSize.height + baseLine)),
@@ -194,6 +206,7 @@ int main(int argc, char** argv) try
             }
         }
 
+        pub.publish(msg);
         imshow(window_name, color_mat);
         if (waitKey(1) >= 0) break;
     }
