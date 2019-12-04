@@ -134,6 +134,7 @@ int main(int argc, char** argv) try
         if (client.call(srv))
         {
             msg = srv.response.detected;
+            ROS_INFO("Response received");
           // ROS_INFO("Sum: %ld", (long int)srv.response.sum);
         }
         else
