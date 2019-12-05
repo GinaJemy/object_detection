@@ -82,6 +82,7 @@ class DetectionServer():
 
 
 		    msg.detectedObjects = det_list
+		    msg.count = num_detections
 	    	return msg
 		# cv.imshow('TensorFlow FasterRCNN', img)
 

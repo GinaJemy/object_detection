@@ -130,12 +130,14 @@ int main(int argc, char** argv) try
         img_bridge.toImageMsg(img_msg); // from cv_bridge to sensor_msgs::Image
         srv.request.img = img_msg;
         // bridge_.cvToImgMsg(color_mat, "bgr8");
-        realsense_perception::DetectedObjectsArray msg;
+        realsense_perception::DetectedObjectsArray objects;
+        
         if (client.call(srv))
         {
-            msg = srv.response.detected;
+            objects = srv.response.detected;
+            
             ROS_INFO("Response received");
-            std::cout<< msg.detectedObjects[0];
+            // std::cout<< objects[0];
           // ROS_INFO("Sum: %ld", (long int)srv.response.sum);
         }
         else
@@ -144,6 +146,83 @@ int main(int argc, char** argv) try
           return 1;
         }
 
+        // realsense_perception::DetectedObject det_obj [objects.count];
+        // det_obj = objects.detectedObjects;
+        // Crop both color and depth frames
+        color_mat = color_mat(crop);
+        depth_mat = depth_mat(crop);
+
+        for(int i = 0; i< objects.detectedObjects.size(); i++)
+        {
+            float x_lt = objects.detectedObjects[i].xlt;
+            float y_lt = objects.detectedObjects[i].ylt;
+            float x_rb = objects.detectedObjects[i].xrb;
+            float y_rb = objects.detectedObjects[i].yrb;
+            String className = objects.detectedObjects[i].ClassName;
+            float prob = objects.detectedObjects[i].probability;
+            Point p1(cvRound(x_lt), cvRound(y_lt));
+            Point p2(cvRound(x_rb), cvRound(y_rb));
+            Rect object(p1, p2);
+            //Draw bounding box
+            Scalar object_roi_color(0, 255, 0);
+            rectangle(color_mat, object, object_roi_color);
+            String label = format("%s: %.2f", className.c_str(), prob);
+            int baseLine = 0;
+            Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+            //Calculate center
+            auto center = (p1 + p2)*0.5;
+
+            float centerPixel[2]; //  pixel
+            float centerPoint[3]; //  point (in 3D)
+
+
+            centerPixel[0] = center.x;
+            centerPixel[1] = center.y;
+
+            // Use central pixel depth
+            auto dist = depth_mat.at<double>(center);
+            while (dist == 0 && center.y < y_rb)
+            {
+                center.y = center.y + 1;
+                dist = depth_mat.at<double>(center);;
+            }
+            // Get x,y,z coordinates from pixel and depth
+            rs2_deproject_pixel_to_point(centerPoint, &intrinsics, centerPixel, dist);
+
+            //String to represent depth of object
+            std::ostringstream ss;
+            ss << std::setprecision(2) << dist << " meters away";
+            String conf(ss.str());
+
+            //String to represent coordinates of object
+            std::ostringstream ss1;
+            ss1 << " x :" << std::setprecision(2) << (centerPoint[0]);
+            ss1 << " y :" << std::setprecision(2) << (centerPoint[1]);
+            ss1 << " z :" << std::setprecision(2) << (centerPoint[2]);
+            String conf1(ss1.str());
+            // Add label with class name
+            rectangle(color_mat, Rect(p1, Size(labelSize.width, labelSize.height + baseLine)),
+                      object_roi_color, FILLED);
+            putText(color_mat, label, p1 + Point(0, labelSize.height),
+                    FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
+
+            //Add label with coordinates of object
+            Size labelSize1 = getTextSize(ss1.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+            rectangle(color_mat, Rect(Point(center.x-labelSize1.width/2, center.y +2 *labelSize1.height ),
+                Size(labelSize1.width, labelSize1.height + baseLine)),
+                Scalar(255, 255, 255), FILLED);
+            putText(color_mat, ss1.str(), Point(center.x-labelSize1.width/2, center.y + 3 *labelSize1.height ),
+                    FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
+
+            //Add label with depth of object
+            Size labelSize2 = getTextSize(ss.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+            rectangle(color_mat, Rect(Point(center.x-labelSize1.width/2, center.y +4 *labelSize2.height ),
+                Size(labelSize2.width, labelSize2.height + baseLine)),
+                Scalar(255, 255, 255), FILLED);
+            putText(color_mat, ss.str(), Point(center.x-labelSize1.width/2, center.y + 5 *labelSize2.height ),
+                    FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
+
+        }
         
 
         // for(int i = 0; i < detectionMat.rows; i++)
@@ -240,8 +319,8 @@ int main(int argc, char** argv) try
         // }
 
         // // pub.publish(msg);
-        // imshow(window_name, color_mat);
-        // if (waitKey(1) >= 0) break;
+        imshow(window_name, color_mat);
+        if (waitKey(1) >= 0) break;
     }
 
     return EXIT_SUCCESS;
