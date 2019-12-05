@@ -9,7 +9,7 @@ add_compile_options(-std=c++11)
 ## is used, also find other catkin packages
 #set(OpenCV_DIR /usr/local/lib/cmake/opencv4/OpenCVConfig.cmake)
 
-find_package(OpenCV 3  REQUIRED)
+find_package(OpenCV REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -156,8 +156,8 @@ include_directories(
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
+#add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(realsense_perception msg_pkg_generate_messages_cpp)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}

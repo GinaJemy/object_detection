@@ -135,6 +135,7 @@ int main(int argc, char** argv) try
         {
             msg = srv.response.detected;
             ROS_INFO("Response received");
+            std::cout<< msg.detectedObjects[0];
           // ROS_INFO("Sum: %ld", (long int)srv.response.sum);
         }
         else
