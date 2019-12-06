@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import sys
 import numpy as np
-import os
 import cv2 as cv
 import tensorflow as tf
 import roslib

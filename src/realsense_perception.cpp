@@ -101,7 +101,13 @@ int main(int argc, char** argv) try
         img_bridge.toImageMsg(img_msg); // from cv_bridge to sensor_msgs::Image
         srv.request.img = img_msg;
         realsense_perception::DetectedObjectsArray objects;
-        
+        //Save image as part of dataset
+        fs::path direct ("/home/gina/Documents/");
+        fs::path filepath (std::to_string(header.seq));
+        fs::path full_path_orig = direct / filepath;
+        imwrite( full_path_orig.u8string()+".jpg", color_mat );
+
+        //Call service
         if (client.call(srv))
         {
             objects = srv.response.detected;
