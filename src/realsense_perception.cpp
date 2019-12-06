@@ -1,9 +1,5 @@
-// This example is derived from the ssd_mobilenet_object_detection opencv demo
-// and adapted to be used with Intel RealSense Cameras
-// Please see https://github.com/opencv/opencv/blob/master/LICENSE
-
-// #include <opencv2/dnn.hpp>
-// #include <opencv2/dnn/shape_utils.hpp>
+//TODO description
+//
 #include <librealsense2/rs.hpp>
 #include "cv-helpers.hpp"
 #include <librealsense2/rsutil.h>
@@ -11,10 +7,10 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <experimental/filesystem>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
-// #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
@@ -22,8 +18,8 @@
 #include "realsense_perception/DetectedObjectsArray.h"
 #include "realsense_perception/DetectObjects.h"
 using namespace cv;
-// using namespace cv::dnn;
 using namespace rs2;
+namespace fs = std::experimental::filesystem;
 
 const int inpWidth = 300;        // Width of network's input image
 const int inpHeight = 300;       // Height of network's input image
@@ -40,25 +36,6 @@ int main(int argc, char** argv) try
     ros::NodeHandle n;
     ros::ServiceClient client = n.serviceClient<realsense_perception::DetectObjects>("detect");
     realsense_perception::DetectObjects srv;
-
-    // image_transport::ImageTransport it_;
-  
-    // ros::Publisher pub = n.advertise<realsense_perception::DetectedObjectsArray>("Objects", 1000);
-
-    //Load names of classes
-    // String classesFile = "/home/gina/cam_ws/src/darknet_ros/darknet/data/coco.names";
-    // std::ifstream ifs(classesFile.c_str());
-    // std::string line;
-    // while (getline(ifs, line)) classNamesVec.push_back(line);
-
-    // Give the configuration and weight files for the model
-    // String modelConfiguration = "/home/gina/cam_ws/src/darknet_ros/darknet_ros/yolo_network_config/cfg/yolov2.cfg";
-    // String modelWeights = "/home/gina/cam_ws/src/darknet_ros/darknet_ros/yolo_network_config/weights/yolov2.weights";
-
-    // Load the network
-    // Net net = readNetFromDarknet(modelWeights,modelConfiguration);
-    // Net net = readNetFromTensorflow(modelWeights,modelConfiguration);
-    // net.setPreferableTarget(DNN_TARGET_CPU);
 
     // Start streaming from Intel RealSense Camera
     pipeline pipe;
@@ -112,15 +89,9 @@ int main(int argc, char** argv) try
         auto depth_mat = depth_frame_to_meters(pipe, depth_frame);
 
         // Crop both color and depth frames
-        // color_mat = color_mat(crop);
-        // depth_mat = depth_mat(crop);
+        color_mat = color_mat(crop);
+        depth_mat = depth_mat(crop);
 
-        //Convert Mat to batch of images
-        // Mat inputBlob = blobFromImage(color_mat, inScaleFactor,
-        //                               Size(inpWidth, inpHeight), meanVal, false);
-        //Set the network input
-        // net.setInput(inputBlob, "data");
-        // Mat detectionMat = net.forward("detection_boxes");
         sensor_msgs::Image img_msg; 
         cv_bridge::CvImage img_bridge;
         std_msgs::Header header; // empty header
@@ -129,7 +100,6 @@ int main(int argc, char** argv) try
         img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, color_mat);
         img_bridge.toImageMsg(img_msg); // from cv_bridge to sensor_msgs::Image
         srv.request.img = img_msg;
-        // bridge_.cvToImgMsg(color_mat, "bgr8");
         realsense_perception::DetectedObjectsArray objects;
         
         if (client.call(srv))
@@ -137,22 +107,15 @@ int main(int argc, char** argv) try
             objects = srv.response.detected;
             
             ROS_INFO("Response received");
-            // std::cout<< objects[0];
-          // ROS_INFO("Sum: %ld", (long int)srv.response.sum);
         }
         else
         {
           ROS_ERROR("Failed to call service DetectObjects");
           return 1;
-        }
+        } 
 
-        // realsense_perception::DetectedObject det_obj [objects.count];
-        // det_obj = objects.detectedObjects;
-        // Crop both color and depth frames
-        color_mat = color_mat(crop);
-        depth_mat = depth_mat(crop);
-
-        for(int i = 0; i< objects.detectedObjects.size(); i++)
+        std::cout<<objects.count;
+        for(int i = 0; i< objects.count; i++)
         {
             float x_lt = objects.detectedObjects[i].xlt;
             float y_lt = objects.detectedObjects[i].ylt;
@@ -163,8 +126,16 @@ int main(int argc, char** argv) try
             Point p1(cvRound(x_lt), cvRound(y_lt));
             Point p2(cvRound(x_rb), cvRound(y_rb));
             Rect object(p1, p2);
+            
+            std::cout<<objects.detectedObjects[i].xlt<<std::endl;
+            std::cout<< objects.detectedObjects[i].ylt<<std::endl;
+            std::cout<< objects.detectedObjects[i].xrb<<std::endl;
+            std::cout<< objects.detectedObjects[i].yrb<<std::endl;
+            std::cout<< objects.detectedObjects[i].ClassName<<std::endl;
+            std::cout<< objects.detectedObjects[i].probability<<std::endl;
+
             //Draw bounding box
-            Scalar object_roi_color(0, 255, 0);
+            Scalar object_roi_color(20*i+10, 255, 0);
             rectangle(color_mat, object, object_roi_color);
             String label = format("%s: %.2f", className.c_str(), prob);
             int baseLine = 0;
@@ -178,13 +149,23 @@ int main(int argc, char** argv) try
 
             centerPixel[0] = center.x;
             centerPixel[1] = center.y;
+            float y_c = center.y;
+            float x_c = center.x;
 
             // Use central pixel depth
             auto dist = depth_mat.at<double>(center);
-            while (dist == 0 && center.y < y_rb)
+            while (dist == 0 )
             {
-                center.y = center.y + 1;
-                dist = depth_mat.at<double>(center);;
+                if (center.y < y_rb)
+                {
+                    center.y = center.y + 1;
+                }
+                else if (center.x < x_rb)
+                {
+                    center.y = y_c;
+                    center.x = center.x + 1;
+                }
+                dist = depth_mat.at<double>(center);
             }
             // Get x,y,z coordinates from pixel and depth
             rs2_deproject_pixel_to_point(centerPoint, &intrinsics, centerPixel, dist);
@@ -208,117 +189,29 @@ int main(int argc, char** argv) try
 
             //Add label with coordinates of object
             Size labelSize1 = getTextSize(ss1.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-            rectangle(color_mat, Rect(Point(center.x-labelSize1.width/2, center.y +2 *labelSize1.height ),
+            rectangle(color_mat, Rect(Point(x_c-labelSize1.width/2, y_c +2 *labelSize1.height ),
                 Size(labelSize1.width, labelSize1.height + baseLine)),
                 Scalar(255, 255, 255), FILLED);
-            putText(color_mat, ss1.str(), Point(center.x-labelSize1.width/2, center.y + 3 *labelSize1.height ),
+            putText(color_mat, ss1.str(), Point(x_c-labelSize1.width/2, y_c + 3 *labelSize1.height ),
                     FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
 
             //Add label with depth of object
             Size labelSize2 = getTextSize(ss.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-            rectangle(color_mat, Rect(Point(center.x-labelSize1.width/2, center.y +4 *labelSize2.height ),
+            rectangle(color_mat, Rect(Point(x_c-labelSize1.width/2, y_c +4 *labelSize2.height ),
                 Size(labelSize2.width, labelSize2.height + baseLine)),
                 Scalar(255, 255, 255), FILLED);
-            putText(color_mat, ss.str(), Point(center.x-labelSize1.width/2, center.y + 5 *labelSize2.height ),
+            putText(color_mat, ss.str(), Point(x_c-labelSize1.width/2, y_c + 5 *labelSize2.height ),
                     FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
 
         }
         
+        //Save image
+        fs::path dir ("/home/gina/Downloads/");
+        fs::path file (std::to_string(header.seq));
+        fs::path full_path = dir / file;
+        imwrite( full_path.u8string()+".jpg", color_mat );
 
-        // for(int i = 0; i < detectionMat.rows; i++)
-        // {
-        //     const int probability_index = 5;
-        //     const int probability_size = detectionMat.cols - probability_index;
-        //     float *prob_array_ptr = &detectionMat.at<float>(i, probability_index);
-        //     size_t objectClass = std::max_element(prob_array_ptr, prob_array_ptr + probability_size) - prob_array_ptr;
-        //     float confidence = detectionMat.at<float>(i, (int)objectClass + probability_index);
-
-
-        //     if(confidence > confidenceThreshold)
-        //     {
-        //         float x_center = detectionMat.at<float>(i, 0) * color_mat.cols;
-        //         float y_center = detectionMat.at<float>(i, 1) * color_mat.rows;
-        //         float width = detectionMat.at<float>(i, 2) * color_mat.cols;
-        //         float height = detectionMat.at<float>(i, 3) * color_mat.rows;
-        //         Point p1(cvRound(x_center - width / 2), cvRound(y_center - height / 2));
-        //         Point p2(cvRound(x_center + width / 2), cvRound(y_center + height / 2));
-        //         Rect object(p1, p2);
-        //         //Draw bounding box
-        //         Scalar object_roi_color(0, 255, 0);
-        //         rectangle(color_mat, object, object_roi_color);
-
-        //         //Get Class Label
-        //         String className = objectClass < classNamesVec.size() ? classNamesVec[objectClass] : cv::format("unknown(%d)", objectClass);
-        //         String label = format("%s: %.2f", className.c_str(), confidence);
-        //         int baseLine = 0;
-        //         Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-
-        //         //Calculate center
-        //         auto center = (p1 + p2)*0.5;
-
-        //         float centerPixel[2]; //  pixel
-        //         float centerPoint[3]; //  point (in 3D)
-
-
-        //         centerPixel[0] = center.x;
-        //         centerPixel[1] = center.y;
-
-        //         // Use central pixel depth
-        //         auto dist = depth_mat.at<double>(center);
-        //         while (dist == 0)
-        //         {
-        //             center.y = center.y + 1;
-        //             dist = depth_mat.at<double>(center);;
-        //         }
-        //         // Get x,y,z coordinates from pixel and depth
-        //         rs2_deproject_pixel_to_point(centerPoint, &intrinsics, centerPixel, dist);
-
-        //         //String to represent depth of object
-        //         std::ostringstream ss;
-        //         ss << std::setprecision(2) << dist << " meters away";
-        //         String conf(ss.str());
-
-        //         //String to represent coordinates of object
-        //         std::ostringstream ss1;
-        //         ss1 << " x :" << std::setprecision(2) << (centerPoint[0]);
-        //         ss1 << " y :" << std::setprecision(2) << (centerPoint[1]);
-        //         ss1 << " z :" << std::setprecision(2) << (centerPoint[2]);
-        //         String conf1(ss1.str());
-
-        //         realsense_perception::DetectedObject obj;
-        //         obj.x = centerPoint[0];
-        //         obj.y = centerPoint[1];
-        //         obj.z = centerPoint[2];
-        //         obj.ClassName = className;
-        //         obj.probability = confidence;
-
-        //         msg.detectedObjects.push_back(obj);
-
-        //         // Add label with class name
-        //         rectangle(color_mat, Rect(p1, Size(labelSize.width, labelSize.height + baseLine)),
-        //                   object_roi_color, FILLED);
-        //         putText(color_mat, label, p1 + Point(0, labelSize.height),
-        //                 FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
-
-        //         //Add label with coordinates of object
-        //         Size labelSize1 = getTextSize(ss1.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-        //         rectangle(color_mat, Rect(Point(x_center-labelSize1.width/2, y_center +2 *labelSize1.height ),
-        //             Size(labelSize1.width, labelSize1.height + baseLine)),
-        //             Scalar(255, 255, 255), FILLED);
-        //         putText(color_mat, ss1.str(), Point(x_center-labelSize1.width/2, y_center + 3 *labelSize1.height ),
-        //                 FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
-
-        //         //Add label with depth of object
-        //         Size labelSize2 = getTextSize(ss.str(), FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-        //         rectangle(color_mat, Rect(Point(x_center-labelSize1.width/2, y_center +4 *labelSize2.height ),
-        //             Size(labelSize2.width, labelSize2.height + baseLine)),
-        //             Scalar(255, 255, 255), FILLED);
-        //         putText(color_mat, ss.str(), Point(x_center-labelSize1.width/2, y_center + 5 *labelSize2.height ),
-        //                 FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
-        //     }
-        // }
-
-        // // pub.publish(msg);
+        //Display image with bounding boxes and labels
         imshow(window_name, color_mat);
         if (waitKey(1) >= 0) break;
     }

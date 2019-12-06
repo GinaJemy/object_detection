@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 import sys
 import numpy as np
-#sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
+import os
 import cv2 as cv
-#sys.path.append('/opt/ros/kinetic/lib/python2.7/dist-packages')
 import tensorflow as tf
 import roslib
 import rospy
@@ -11,7 +10,6 @@ import label_map_util
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
-# from object_detection.utils import visualization_utils as vis_util
 from realsense_perception.srv import DetectObjects, DetectObjectsResponse
 from realsense_perception.msg import DetectedObject, DetectedObjectsArray
 
@@ -27,7 +25,6 @@ class DetectionServer():
 		self.label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
 		self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
 		self.category_index = label_map_util.create_category_index(self.categories)
-		# self.sess = tf.Session
 		self.bridge = CvBridge()
 		s = rospy.Service('detect', DetectObjects, self.run_detector)
 	def run_detector(self,image):
@@ -38,9 +35,7 @@ class DetectionServer():
 		    
 		    tf.import_graph_def(self.graph_def, name='')
 
-		    # Read and preprocess an image.
-		    # img = cv.imread('/home/gina/image5.png')
-		    print(type(image.img))
+		    # Convert sensor_msg Image to CV image and preprocess
 		    img = self.bridge.imgmsg_to_cv2(image.img, "bgr8")
 		    rows = img.shape[0]
 		    cols = img.shape[1]
@@ -54,7 +49,7 @@ class DetectionServer():
 		                    sess.graph.get_tensor_by_name('detection_classes:0')],
 		                   feed_dict={'image_tensor:0': inp.reshape(1, inp.shape[0], inp.shape[1], 3)})
 
-		    # Visualize detected bounding boxes.
+		    # Construct detected objects message
 		    num_detections = int(out[0][0])
 		    det_list = []
 		    msg = DetectedObjectsArray
@@ -62,15 +57,12 @@ class DetectionServer():
 		        classId = int(out[3][0][i])
 		        score = float(out[1][0][i])
 		        bbox = [float(v) for v in out[2][0][i]]
-		        if score > 0.3:
+		        if score > 0.1:
 		            x = bbox[1] * cols
 		            y = bbox[0] * rows
 		            right = bbox[3] * cols
 		            bottom = bbox[2] * rows
-		            # print(classId)
-		            # print(score)
-		            # print(self.category_index[classId])
-		            obj = DetectedObject
+		            obj = DetectedObject()
 		            obj.xlt = x
 		            obj.ylt = y
 		            obj.xrb = right
@@ -78,17 +70,9 @@ class DetectionServer():
 		            obj.ClassName = self.category_index[classId]["name"]
 		            obj.probability = score
 		            det_list.append(obj)
-		            # cv.rectangle(img, (int(x), int(y)), (int(right), int(bottom)), (125, 255, 51), thickness=2)
-
-
 		    msg.detectedObjects = det_list
-		    msg.count = num_detections
-	    	return msg
-		# cv.imshow('TensorFlow FasterRCNN', img)
-
-
-		# # cv.waitKey()= img.shape[0]
-	    
+		    msg.count = int(out[0][0])
+	    	return msg	    
 
 	def main(self):
 		rospy.spin()
