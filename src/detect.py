@@ -29,7 +29,6 @@ class DetectionServer():
 	def run_detector(self,image):
 		with tf.Session() as sess:
 		    # Restore session
-		    print("callback fn")
 		    sess.graph.as_default()
 		    
 		    tf.import_graph_def(self.graph_def, name='')

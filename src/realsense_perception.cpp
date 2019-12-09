@@ -1,4 +1,4 @@
-//TODO description
+//
 //
 #include <librealsense2/rs.hpp>
 #include "cv-helpers.hpp"
@@ -25,10 +25,6 @@ const int inpWidth = 300;        // Width of network's input image
 const int inpHeight = 300;       // Height of network's input image
 const float WHRatio       = inpWidth / (float)inpHeight;
 const float inScaleFactor = 1/255.0;
-const float meanVal       = 0.5;
-const float confidenceThreshold = 0.6f;
-std::vector<String> classNamesVec;
-
 
 int main(int argc, char** argv) try
 {
@@ -110,8 +106,7 @@ int main(int argc, char** argv) try
         //Call service
         if (client.call(srv))
         {
-            objects = srv.response.detected;
-            
+            objects = srv.response.detected;           
             ROS_INFO("Response received");
         }
         else
