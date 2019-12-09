@@ -1,6 +1,5 @@
-float64 xlt
-float64 ylt
-float64 xrb
-float64 yrb
+float64 x
+float64 y
+float64 z
 string ClassName
 float32 probability

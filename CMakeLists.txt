@@ -7,17 +7,17 @@ add_compile_options(-std=c++11)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
 #set(OpenCV_DIR /usr/local/lib/cmake/opencv4/OpenCVConfig.cmake)
 
 find_package(OpenCV 3  REQUIRED)
+
+
 find_package(realsense2 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
-  sensor_msgs
-  cv_bridge
-  image_transport
   message_generation
 )
 
@@ -79,7 +79,7 @@ find_package(catkin REQUIRED COMPONENTS
  generate_messages(
    DEPENDENCIES
    std_msgs
-   sensor_msgs
+
  )
 
 ################################################

@@ -1,0 +1,3 @@
+src/frozen_inference_graph.pb
+src/ssd_frozen_inference_graph.pb
+src/faster_rcnn_graph.pbtxt
