@@ -8,9 +8,9 @@ add_compile_options(-std=c++11)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
-#set(OpenCV_DIR /usr/local/lib/cmake/opencv4/OpenCVConfig.cmake)
+set(OpenCV_DIR /usr/local/lib/cmake/opencv4/OpenCVConfig.cmake)
 
-find_package(OpenCV 3  REQUIRED)
+find_package(OpenCV 4.1.12 REQUIRED)
 
 
 find_package(realsense2 REQUIRED)
@@ -62,11 +62,10 @@ find_package(catkin REQUIRED COMPONENTS
  )
 
 ## Generate services in the 'srv' folder
- add_service_files(
-   FILES
-   DetectObjects.srv
-#   Service2.srv
- )
+# add_service_files(
+#   FILES
+#   DetectObjects.srv
+# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
