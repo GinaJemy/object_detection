@@ -1,1 +1,2 @@
 DetectedObject[] detectedObjects
+int count

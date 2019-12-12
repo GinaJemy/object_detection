@@ -13,7 +13,6 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
-
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include "realsense_perception/DetectedObject.h"
@@ -214,7 +213,9 @@ int main(int argc, char** argv) try
 
         pub.publish(msg);
         imshow(window_name, color_mat);
+
         waitKey(1);
+
 //        if (waitKey(1) >= 0) break;
 
     }
