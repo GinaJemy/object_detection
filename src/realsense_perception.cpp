@@ -23,8 +23,8 @@ using namespace cv;
 using namespace cv::dnn;
 using namespace rs2;
 
-const int inpWidth = 300;        // Width of network's input image
-const int inpHeight = 300;       // Height of network's input image
+const int inpWidth = 416;        // Width of network's input image
+const int inpHeight = 416;       // Height of network's input image
 
 const float WHRatio       = inpWidth / (float)inpHeight;
 const float inScaleFactor = 1/255.0;
@@ -41,14 +41,14 @@ int main(int argc, char** argv) try
     ros::Publisher pub = n.advertise<realsense_perception::DetectedObjectsArray>("Objects", 1000);
 
     //Load names of classes
-    String classesFile = "/home/gina/cam_ws/src/darknet_ros/darknet/data/coco.names";
+    String classesFile = "/home/gina/cam_ws/src/realsense_perception/src/obj.names";
     std::ifstream ifs(classesFile.c_str());
     std::string line;
     while (getline(ifs, line)) classNamesVec.push_back(line);
 
     // Give the configuration and weight files for the model
-    String modelConfiguration = "/home/gina/cam_ws/src/darknet_ros/darknet_ros/yolo_network_config/cfg/yolov2.cfg";
-    String modelWeights = "/home/gina/cam_ws/src/darknet_ros/darknet_ros/yolo_network_config/weights/yolov2.weights";
+    String modelConfiguration = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj.cfg";
+    String modelWeights = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj-5.weights";
 
     // Load the network
     Net net = readNetFromDarknet(modelConfiguration, modelWeights);
@@ -214,7 +214,8 @@ int main(int argc, char** argv) try
 
         pub.publish(msg);
         imshow(window_name, color_mat);
-        if (waitKey(1) >= 0) break;
+        waitKey(1);
+//        if (waitKey(1) >= 0) break;
 
     }
 

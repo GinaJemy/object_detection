@@ -2,3 +2,4 @@ src/frozen_inference_graph.pb
 src/ssd_frozen_inference_graph.pb
 src/faster_rcnn_graph.pbtxt
 src/faster_rcnn_graph_new.pbtxt
+src/yolo-obj-5.weights
