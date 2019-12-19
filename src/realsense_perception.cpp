@@ -5,7 +5,7 @@
 
 #include <opencv2/dnn.hpp>
 #include <opencv2/dnn/shape_utils.hpp>
-
+#include <opencv2/videoio.hpp>
 #include <librealsense2/rs.hpp>
 #include "cv-helpers.hpp"
 #include <librealsense2/rsutil.h>
@@ -28,7 +28,7 @@ const int inpHeight = 416;       // Height of network's input image
 const float WHRatio       = inpWidth / (float)inpHeight;
 const float inScaleFactor = 1/255.0;
 const float meanVal       = 0.5;
-const float confidenceThreshold = 0.6f;
+const float confidenceThreshold = 0.2f;
 std::vector<String> classNamesVec;
 
 
@@ -47,7 +47,7 @@ int main(int argc, char** argv) try
 
     // Give the configuration and weight files for the model
     String modelConfiguration = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj.cfg";
-    String modelWeights = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj-5.weights";
+    String modelWeights = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj6400.backup";
 
     // Load the network
     Net net = readNetFromDarknet(modelConfiguration, modelWeights);
@@ -85,6 +85,25 @@ int main(int argc, char** argv) try
     const auto window_name = "Display Image";
     namedWindow(window_name, WINDOW_AUTOSIZE);
 
+    std::string fname = "out";
+    //Video file to write output
+    VideoWriter opvideo;
+    opvideo.open(fname+std::to_string(std::time(nullptr))+".avi",VideoWriter::fourcc('M','J','P','G'),5, cropSize ,true);
+     if (!opvideo.isOpened())
+    {
+        std::cout  << "Could not open the output video for write: " << std::endl;
+        return -1;
+    }
+    //Video file to use for offline testing
+    std::string filename = "/media/gina/Backup Plus/test";
+    VideoWriter testvideo;
+    testvideo.open(filename+std::to_string(std::time(nullptr))+".avi",VideoWriter::fourcc('M','J','P','G'),5, cropSize ,true);
+     if (!testvideo.isOpened())
+    {
+        std::cout  << "Could not open the output video for write: " << std::endl;
+        return -1;
+    }
+
     while (getWindowProperty(window_name, WND_PROP_AUTOSIZE) >= 0)
     {
         // Wait for the next set of frames
@@ -109,6 +128,8 @@ int main(int argc, char** argv) try
         color_mat = color_mat(crop);
         depth_mat = depth_mat(crop);
 
+        //Save videos for testing later on
+        testvideo.write(color_mat);
         //Convert Mat to batch of images
         Mat inputBlob = blobFromImage(color_mat, inScaleFactor,
                                       Size(inpWidth, inpHeight), meanVal, false);
@@ -117,7 +138,7 @@ int main(int argc, char** argv) try
         Mat detectionMat = net.forward("detection_out");
 
         realsense_perception::DetectedObjectsArray msg;
-
+        int obj_count=0;
         for(int i = 0; i < detectionMat.rows; i++)
         {
             const int probability_index = 5;
@@ -129,6 +150,7 @@ int main(int argc, char** argv) try
 
             if(confidence > confidenceThreshold)
             {
+                obj_count = obj_count + 1;
                 float x_center = detectionMat.at<float>(i, 0) * color_mat.cols;
                 float y_center = detectionMat.at<float>(i, 1) * color_mat.rows;
                 float width = detectionMat.at<float>(i, 2) * color_mat.cols;
@@ -141,7 +163,7 @@ int main(int argc, char** argv) try
                 rectangle(color_mat, object, object_roi_color);
 
                 //Get Class Label
-                String className = objectClass < classNamesVec.size() ? classNamesVec[objectClass] : cv::format("unknown(%d)", objectClass);
+                String className = objectClass < classNamesVec.size() ? classNamesVec[objectClass] : cv::format("unknown(%d)", int(objectClass));
                 String label = format("%s: %.2f", className.c_str(), confidence);
                 int baseLine = 0;
                 Size labelSize = getTextSize(label, FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
@@ -151,7 +173,6 @@ int main(int argc, char** argv) try
 
                 float centerPixel[2]; //  pixel
                 float centerPoint[3]; //  point (in 3D)
-
 
                 centerPixel[0] = center.x;
                 centerPixel[1] = center.y;
@@ -210,16 +231,23 @@ int main(int argc, char** argv) try
                         FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
             }
         }
-
+        msg.count = obj_count;
         pub.publish(msg);
+        opvideo.write(color_mat);
+        // std::cout<<cropSize.width<<" "<<color_mat.size[0]<<std::endl;
+        // std::cout<<cropSize.height<<" "<<color_mat.size[1]<<std::endl;
         imshow(window_name, color_mat);
 
-        waitKey(1);
+        char c = (char)waitKey(1);
+        if( c == 27 ) 
+            break;
 
 //        if (waitKey(1) >= 0) break;
 
     }
 
+    opvideo.release();
+    testvideo.release();
     return EXIT_SUCCESS;
 }
 catch (const rs2::error & e)

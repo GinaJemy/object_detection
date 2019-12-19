@@ -1,2 +1,2 @@
 DetectedObject[] detectedObjects
-int count
+int32 count
