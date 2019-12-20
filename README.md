@@ -4,5 +4,7 @@
 #### librealsense 2.30.0
 #### YOLO v2
 # Sample output
-![Detecting bottle and its location](https://github.com/GinaJemy/object_detection/blob/yolo_dev/output/correct_depth.png)
-
+# https://drive.google.com/file/d/1yOQ-y4jUUTe1_UYhzAF6J6RyuxVhn2_c/view?usp=sharing
+![Sample output](https://github.com/GinaJemy/object_detection/blob/yolo_dev/output/sample.png)
+# Weights file
+# https://drive.google.com/file/d/1cXhFPw3yO7s_pgjrtCPpX5PiukrGXyfB/view?usp=sharing
