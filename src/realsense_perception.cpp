@@ -1,7 +1,7 @@
 // This example is derived from the ssd_mobilenet_object_detection opencv demo
 // and adapted to be used with Intel RealSense Cameras
+// and to use a yolo v2 classifier
 // Please see https://github.com/opencv/opencv/blob/master/LICENSE
-
 
 #include <opencv2/dnn.hpp>
 #include <opencv2/dnn/shape_utils.hpp>
@@ -21,38 +21,37 @@
 using namespace cv;
 using namespace cv::dnn;
 using namespace rs2;
+using namespace std;
 
 const int inpWidth = 416;        // Width of network's input image
 const int inpHeight = 416;       // Height of network's input image
 
 const float WHRatio       = inpWidth / (float)inpHeight;
-const float inScaleFactor = 1/255.0;
-const float meanVal       = 0.5;
+const float inScaleFactor = 1/255.0; //to scale values between 0-1 instead of 0-255
+const float meanVal       = 0.5;  //mean values which are subtracted from channels to achieve data normalization
 const float confidenceThreshold = 0.2f;
-std::vector<String> classNamesVec;
 
+// Give the configuration and weight files for the model
+String modelConfiguration = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj.cfg";
+String modelWeights = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj6400.backup";
 
 int main(int argc, char** argv) try
 {
+    //Initialize node and advertise published topic
     ros::init(argc, argv, "perception");
     ros::NodeHandle n;
-
     ros::Publisher pub = n.advertise<realsense_perception::DetectedObjectsArray>("Objects", 1000);
 
     //Load names of classes
+    vector<String> classNamesVec;
     String classesFile = "/home/gina/cam_ws/src/realsense_perception/src/obj.names";
-    std::ifstream ifs(classesFile.c_str());
-    std::string line;
+    ifstream ifs(classesFile.c_str());
+    string line;
     while (getline(ifs, line)) classNamesVec.push_back(line);
-
-    // Give the configuration and weight files for the model
-    String modelConfiguration = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj.cfg";
-    String modelWeights = "/home/gina/cam_ws/src/realsense_perception/src/yolo-obj6400.backup";
 
     // Load the network
     Net net = readNetFromDarknet(modelConfiguration, modelWeights);
     net.setPreferableTarget(DNN_TARGET_CPU);
-
 
     // Start streaming from Intel RealSense Camera
     pipeline pipe;
@@ -85,25 +84,26 @@ int main(int argc, char** argv) try
     const auto window_name = "Display Image";
     namedWindow(window_name, WINDOW_AUTOSIZE);
 
-    std::string fname = "out";
     //Video file to write output
+/*    string fname = "out";
     VideoWriter opvideo;
-    opvideo.open(fname+std::to_string(std::time(nullptr))+".avi",VideoWriter::fourcc('M','J','P','G'),5, cropSize ,true);
+    opvideo.open(fname+to_string(time(nullptr))+".avi",VideoWriter::fourcc('M','J','P','G'),5, cropSize ,true);
      if (!opvideo.isOpened())
     {
-        std::cout  << "Could not open the output video for write: " << std::endl;
+        cout  << "Could not open the output video for write: " << endl;
         return -1;
     }
+*/
     //Video file to use for offline testing
-    std::string filename = "/media/gina/Backup Plus/test";
+/*    string filename = "/media/gina/Backup Plus/test";
     VideoWriter testvideo;
-    testvideo.open(filename+std::to_string(std::time(nullptr))+".avi",VideoWriter::fourcc('M','J','P','G'),5, cropSize ,true);
+    testvideo.open(filename+to_string(time(nullptr))+".avi",VideoWriter::fourcc('M','J','P','G'),5, cropSize ,true);
      if (!testvideo.isOpened())
     {
-        std::cout  << "Could not open the output video for write: " << std::endl;
+        cout  << "Could not open the output video for write: " << endl;
         return -1;
     }
-
+*/
     while (getWindowProperty(window_name, WND_PROP_AUTOSIZE) >= 0)
     {
         // Wait for the next set of frames
@@ -128,8 +128,9 @@ int main(int argc, char** argv) try
         color_mat = color_mat(crop);
         depth_mat = depth_mat(crop);
 
-        //Save videos for testing later on
-        testvideo.write(color_mat);
+        //Save videos for offline testing 
+//        testvideo.write(color_mat);
+
         //Convert Mat to batch of images
         Mat inputBlob = blobFromImage(color_mat, inScaleFactor,
                                       Size(inpWidth, inpHeight), meanVal, false);
@@ -137,17 +138,20 @@ int main(int argc, char** argv) try
         net.setInput(inputBlob, "data");
         Mat detectionMat = net.forward("detection_out");
 
+        //Create message and initialize count
         realsense_perception::DetectedObjectsArray msg;
         int obj_count=0;
+
+        //Loop over all detections
         for(int i = 0; i < detectionMat.rows; i++)
         {
             const int probability_index = 5;
             const int probability_size = detectionMat.cols - probability_index;
             float *prob_array_ptr = &detectionMat.at<float>(i, probability_index);
-            size_t objectClass = std::max_element(prob_array_ptr, prob_array_ptr + probability_size) - prob_array_ptr;
+            size_t objectClass = max_element(prob_array_ptr, prob_array_ptr + probability_size) - prob_array_ptr;
             float confidence = detectionMat.at<float>(i, (int)objectClass + probability_index);
 
-
+            //Process objects with probability above min threshold
             if(confidence > confidenceThreshold)
             {
                 obj_count = obj_count + 1;
@@ -158,6 +162,7 @@ int main(int argc, char** argv) try
                 Point p1(cvRound(x_center - width / 2), cvRound(y_center - height / 2));
                 Point p2(cvRound(x_center + width / 2), cvRound(y_center + height / 2));
                 Rect object(p1, p2);
+                
                 //Draw bounding box
                 Scalar object_roi_color(0, 255, 0);
                 rectangle(color_mat, object, object_roi_color);
@@ -179,26 +184,30 @@ int main(int argc, char** argv) try
 
                 // Use central pixel depth
                 auto dist = depth_mat.at<double>(center);
+
+                //If pixel depth is noisy (equals zero) get depth from a neighboring pixel
                 while (dist == 0)
                 {
                     center.y = center.y + 1;
                     dist = depth_mat.at<double>(center);;
                 }
+
                 // Get x,y,z coordinates from pixel and depth
                 rs2_deproject_pixel_to_point(centerPoint, &intrinsics, centerPixel, dist);
 
                 //String to represent depth of object
-                std::ostringstream ss;
-                ss << std::setprecision(2) << dist << " meters away";
+                ostringstream ss;
+                ss << setprecision(2) << dist << " meters away";
                 String conf(ss.str());
 
                 //String to represent coordinates of object
-                std::ostringstream ss1;
-                ss1 << " x :" << std::setprecision(2) << (centerPoint[0]);
-                ss1 << " y :" << std::setprecision(2) << (centerPoint[1]);
-                ss1 << " z :" << std::setprecision(2) << (centerPoint[2]);
+                ostringstream ss1;
+                ss1 << " x :" << setprecision(2) << (centerPoint[0]);
+                ss1 << " y :" << setprecision(2) << (centerPoint[1]);
+                ss1 << " z :" << setprecision(2) << (centerPoint[2]);
                 String conf1(ss1.str());
 
+                //Create new object and fill its values
                 realsense_perception::DetectedObject obj;
                 obj.x = centerPoint[0];
                 obj.y = centerPoint[1];
@@ -206,6 +215,7 @@ int main(int argc, char** argv) try
                 obj.ClassName = className;
                 obj.probability = confidence;
 
+                //Add new object to vector of detected objects
                 msg.detectedObjects.push_back(obj);
 
                 // Add label with class name
@@ -231,32 +241,36 @@ int main(int argc, char** argv) try
                         FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0,0,0));
             }
         }
+
         msg.count = obj_count;
+
+        //Publish ROS message with detected objects
         pub.publish(msg);
-        opvideo.write(color_mat);
-        // std::cout<<cropSize.width<<" "<<color_mat.size[0]<<std::endl;
-        // std::cout<<cropSize.height<<" "<<color_mat.size[1]<<std::endl;
+
+        //Write frame with detections to output video
+//        opvideo.write(color_mat);
+
+        //Display detections
         imshow(window_name, color_mat);
 
+        //Press ESC to quit 
         char c = (char)waitKey(1);
         if( c == 27 ) 
             break;
 
-//        if (waitKey(1) >= 0) break;
-
     }
 
-    opvideo.release();
-    testvideo.release();
+//    opvideo.release();
+//    testvideo.release();
     return EXIT_SUCCESS;
 }
 catch (const rs2::error & e)
 {
-    std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
+    cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << endl;
     return EXIT_FAILURE;
 }
-catch (const std::exception& e)
+catch (const exception& e)
 {
-    std::cerr << e.what() << std::endl;
+    cerr << e.what() << endl;
     return EXIT_FAILURE;
 }
