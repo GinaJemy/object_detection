@@ -8,3 +8,5 @@
 ![Sample output](https://github.com/GinaJemy/object_detection/blob/yolo_dev/output/sample.png)
 # Weights file
 ## https://drive.google.com/file/d/1cXhFPw3yO7s_pgjrtCPpX5PiukrGXyfB/view?usp=sharing
+# Dataset
+## https://github.com/GinaJemy/gastro_dataset
