@@ -10,3 +10,8 @@
 ## https://drive.google.com/file/d/1cXhFPw3yO7s_pgjrtCPpX5PiukrGXyfB/view?usp=sharing
 # Dataset
 ## https://github.com/GinaJemy/gastro_dataset
+# Annotation tool
+## https://github.com/AlexeyAB/Yolo_mark
+## Training is done using google colab notebook found in this repository
+# Weights file after adding person object
+## https://drive.google.com/file/d/15wbFzxmAjD0RZtjKAD1fFySmneQpMy5Q/view?usp=sharing
