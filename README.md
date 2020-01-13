@@ -12,6 +12,8 @@
 ## https://github.com/GinaJemy/gastro_dataset
 # Annotation tool
 ## https://github.com/AlexeyAB/Yolo_mark
+## After generating the annotated dataset, generate the train.txt file using 
+## https://github.com/GinaJemy/gastro_dataset/blob/master/img/generate_train.py
 ## Training is done using google colab notebook found in this repository
 # Weights file after adding person object
 ## https://drive.google.com/file/d/15wbFzxmAjD0RZtjKAD1fFySmneQpMy5Q/view?usp=sharing
