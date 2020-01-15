@@ -89,11 +89,16 @@ def callback(data):
 		obj_y = obj_y+ px
 		obj_z = obj_z +pz
 		print(detected[i].ClassName+" "+"\n x="+str(obj_x)+"\n y="+str(obj_y)+"\n z="+str(obj_z))
+		data.detectedObjects[i].x = obj_x
+		data.detectedObjects[i].y = obj_y
+		data.detectedObjects[i].z = obj_z
+		pub.publish(data)
 		i += 1
 	
 	
 
 rospy.init_node('coordinate_transformer')
 rospy.Subscriber("Objects", DetectedObjectsArray, callback)
+pub = rospy.Publisher('TransformedObjects', DetectedObjectsArray, queue_size=10)
 while(1):
 	rospy.spin()
