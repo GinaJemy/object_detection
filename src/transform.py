@@ -87,7 +87,7 @@ def callback(data):
 		# X and Y axes for robot are rotated
 		obj_x = obj_x + py
 		obj_y = obj_y+ px
-		obj_z = 0.66 +pz
+		obj_z = obj_z +pz
 		print(detected[i].ClassName+" "+"\n x="+str(obj_x)+"\n y="+str(obj_y)+"\n z="+str(obj_z))
 		i += 1
 	
