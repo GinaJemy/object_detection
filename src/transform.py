@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+# Parameters are taken from http://www.inase.org/library/2015/vienna/bypaper/MECH/MECH-13.pdf
 import numpy as np
 import roslib
 import rospy
 from realsense_perception.msg import DetectedObject, DetectedObjectsArray
-
+# Values of theta should be obtained in real-time, here they are used for a sample case so they are fixed
 theta1 =35.583455 
 d1 = 0
 a1 = 0.075
@@ -66,9 +67,12 @@ T56 = np.array([[np.cos(theta6),0,-np.sin(theta6),0],
 
 T06 = T01.dot(T12).dot(T23).dot(T34).dot(T45).dot(T56)
 
+# End effector pose relative to the 
+px = T06[0,3]
+py = T06[1,3]
+pz = T06[2,3]
 
 
-T60 = np.linalg.pinv(T06)
 
 def callback(data):
 	count = data.count
@@ -79,12 +83,12 @@ def callback(data):
 		obj_x = detected[i].x
 		obj_y = detected[i].y
 		obj_z = detected[i].z
-		pt = np.array([[obj_x],
-			   [obj_y],
-			   [obj_z],
-			   [1]])
-		transformed_pt = T60.dot(pt)
-		print(detected[i].ClassName+" "+np.array2string(transformed_pt))
+
+		# X and Y axes for robot are rotated
+		obj_x = obj_x + py
+		obj_y = obj_y+ px
+		obj_z = 0.66 +pz
+		print(detected[i].ClassName+" "+"\n x="+str(obj_x)+"\n y="+str(obj_y)+"\n z="+str(obj_z))
 		i += 1
 	
 	
