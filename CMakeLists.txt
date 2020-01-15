@@ -16,6 +16,7 @@ find_package(OpenCV 4.1.12 REQUIRED)
 find_package(realsense2 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  rospy
   std_msgs
   message_generation
 )
